@@ -1,0 +1,8 @@
+A Java implementation of the Florian Loitsch's Grisu2 algorithm for printing
+floating point numbers with only integer arithmetic. Fast and almost
+alawys correct :)
+
+On start up some garbage is created, but after initialization, no new garbage
+is created per call.
+
+http://florian.loitsch.com/publications
