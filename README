@@ -2,8 +2,13 @@ A Java implementation of the Florian Loitsch's Grisu2 algorithm for printing
 floating point numbers with only integer arithmetic. Fast and almost
 alawys correct :)
 
-On start up some garbage is created, but after initialization, no new garbage
-is created per call.
+No garbage is created per call. Possibly a little on startup.
 
 http://florian.loitsch.com/publications
 https://github.com/floitsch/double-conversion
+
+Author's Node: This is not very Java-ish code. It uses some hacks to make sure
+everything gets done in native types and no garbage is created and to work
+around Java's lack of unsigned integers. All these could be solved if Java
+had no-overhead value objects on the stack. Valhalla is working on them I
+hear, but that is a Java 10 feature at the earliest :(
