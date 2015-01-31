@@ -6,3 +6,4 @@ On start up some garbage is created, but after initialization, no new garbage
 is created per call.
 
 http://florian.loitsch.com/publications
+https://github.com/floitsch/double-conversion
