@@ -7,6 +7,10 @@ import static zerog.util.grisu.DiyFp.u_doubleHiddenBit;
 import static zerog.util.grisu.DiyFp.u_doubleMantissaMask;
 
 // TODO: add rounding to number of decimals
+// TODO: add fast path for small precision numbers
+// TODO: add JMH benchmarking code to git
+// TODO: doubleToString() make scratch buffer thread local.
+
 public class Grisu {
 
     /**
@@ -86,6 +90,8 @@ public class Grisu {
      * @param boffset Where to begin writing.
      */
     public int doubleToBytes( byte[] buffer, int boffset, double value ) {
+        
+        // TODO: unpack here and test for special cases myself.
 
         // Get the special cases out of the way: NaN, infinities, zero(s)
         if( Double.isNaN( value )) {

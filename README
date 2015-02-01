@@ -15,3 +15,8 @@ hear, but that is a Java 10 feature at the earliest :(
 
 I'm trying to get the rest of the Zero-G Logging out sometime soon, but it
 has to be ripped from a larger zero-g library.
+
+COMPILING:
+
+The project has JMH jar references to my maven repo. That that causes problems,
+you can remove them and test/zerog/util.grisu/JmhBenchmark.java from the build.
