@@ -9,41 +9,87 @@ import static zerog.util.grisu.DiyFp.u_doubleMantissaMask;
 // TODO: add rounding to number of decimals
 public class Grisu {
 
-    public static final Grisu format = new Grisu( 16, 10, 'e' );
+    /**
+     * The default formatter with 16 {@code max_int_digits}, 10 {@code max_frac_digits},
+     * and using little 'e' for the {@code exp_char}.
+     */
+    public static final Grisu fmt = new Grisu( 16, 10, 'e' );
 
-    public final int maxintdigits;
-    public int maxfracdigits;
-    public byte exp_char;
+    // NOTE: get rid of these and pass them into the method? Or maybe passing
+    // them in should override these?
+    public final int max_int_digits;
+    public final int max_frac_digits;
+    public final byte exp_char;
 
+    /**
+     * Grisu2 is capable of printing out {@value #max_grisu_precision} digits
+     * of total precision with the 64 but longs. A longer long would allow more.
+     */
     static final int max_grisu_precision = 17;
 
-    // as long as `max_int_digits` is less than `max_grisu_precisio` this holds
-    // +1 for minus, +1 for dot, +5 for exponent (+/-, e, 3 digits).
+    /**
+     * The longest printed representation is {@value #longest_double_output}. As
+     * long as {@code max_int_digits} is less than {@value #max_grisu_precision}
+     * this holds, plus 1 for minus sign, plus 1 for the decimal point, plus 5
+     * for the exponent (+/-, e, 3 digits).
+     */
     public static final int longest_double_output = max_grisu_precision + 1 + 1 + 5;
 
-    static final byte[] nan_text = "NaN".getBytes();
-    static final byte[] inf_text = "Infinity".getBytes();
-    static final byte[] zero_text = "0.0".getBytes();
+    protected static final byte[] nan_text = "NaN".getBytes();
+    protected static final byte[] inf_text = "Infinity".getBytes();
+    protected static final byte[] zero_text = "0.0".getBytes();
 
+    /**
+     * Create a formatter with a set of defaults.
+     * 
+     * @param max_int_digits
+     * @param max_frac_digits
+     * @param exp_char
+     */
     public Grisu( int max_int_digits, int max_frac_digits, char exp_char ) {
 
-        this.maxintdigits = max_int_digits;
-        this.maxfracdigits = max_frac_digits;
+        this.max_int_digits = max_int_digits;
+        this.max_frac_digits = max_frac_digits;
         this.exp_char = (byte)exp_char;
     }
 
+    /**
+     * Prints the double floating point value into a {@link #String}. Underneath it
+     * calls {@link #doubleToBytes(byte[], int, double)} with a newly allocated
+     * temporary buffer and then news off a String from that.
+     * 
+     * @param value The double value
+     * @return The printed representation
+     */
     public String doubleToString( double value ) {
 
         byte[] buf = new byte[ longest_double_output ];
         int len = doubleToBytes( buf, 0, value );
+        
         return new String( buf, 0, len );
     }
 
+    /**
+     * Will print the specific double value to the buffer starting at offset using
+     * the Grisu2 algorithm described by Florian Loitsch in
+     * <a href="http://florian.loitsch.com/publications"><i>Printing Floating-Point
+     * Numbers Quickly and Accurately with Integers</i></a>.
+     * It gives the shortest correct result that will round trip about 99.8% of the
+     * time and a correct one, but not the shortest, the rest of the time.
+     * <p>
+     * No garbage is generate in the call.
+     * 
+     * @param buffer A buffer that has at least {@value #longest_double_output}
+     * more bytes allocated. This isn't checked so you can get away with less,
+     * if you are sure if will fit.
+     * 
+     * @param boffset Where to begin writing.
+     */
     public int doubleToBytes( byte[] buffer, int boffset, double value ) {
 
         // Get the special cases out of the way: NaN, infinities, zero(s)
         if( Double.isNaN( value )) {
-            // D.isNan() hopefully catches all the NaN values, not just the canonical
+            // TESTME: isNan() hopefully catches all the NaN values, not just the canonical
             System.arraycopy( nan_text, 0, buffer, boffset, nan_text.length );
             return nan_text.length;
         }
@@ -76,37 +122,38 @@ public class Grisu {
         return pos + formatBuffer( buffer, boffset + pos, StuffedPair.car( u_lenpow ), StuffedPair.cdr( u_lenpow ));
     }
 
+    protected static void round( byte[] buffer, int pos, long u_delta, long u_rest, long  u_onef, long u_winf ) {
 
-    private static void round(byte[] buffer, int pos, long u_delta, long u_rest, long  u_onef, long u_winf) {
-
-        while (Long.compareUnsigned(u_rest, u_winf) < 0
-                && Long.compareUnsigned(u_delta - u_rest, u_onef) >= 0
-                && (Long.compareUnsigned(u_rest + u_onef, u_winf) < 0
-                        || Long.compareUnsigned(u_winf - u_rest, u_rest + u_onef - u_winf) > 0)) {
+        while (Long.compareUnsigned( u_rest, u_winf ) < 0
+                && Long.compareUnsigned( u_delta - u_rest, u_onef ) >= 0
+                && (Long.compareUnsigned( u_rest + u_onef, u_winf ) < 0
+                        || Long.compareUnsigned( u_winf - u_rest, u_rest + u_onef - u_winf ) > 0)) {
 
             buffer[pos - 1]--;
             u_rest += u_onef;
         }
     }
 
-    // I wonder if a straight for-loop would be quicker because of branch
-    // mispredictions. The loop would probably get unrolled anyways.
-    private static int numUnsignedDigits( int u_x ) {
+    // I wonder if this gets compiled to cmov ops? Not sure if it would
+    // be beneficial or not...
+    protected static int numUnsignedDigits( int u_x ) {
+        
         int n = 1;
 
-        if (u_x >= 100_000_000) {
-            u_x /= 100_000_000;
+        if( Integer.compareUnsigned( u_x, 100_000_000 ) >= 0 ) {
+            u_x = Integer.divideUnsigned( u_x, 100_000_000 );
             n += 8;
         }
-        if (u_x >= 10_000) {
+        // after here, we are guaranteed that u_x can no longer have a high bit.
+        if( u_x >= 10_000 ) {
             u_x /= 10_000;
             n += 4;
         }
-        if (u_x >= 100) {
+        if( u_x >= 100 ) {
             u_x /= 100;
             n += 2;
         }
-        if (u_x >= 10) {
+        if( u_x >= 10 ) {
             u_x /= 10;
             n += 1;
         }
@@ -114,7 +161,7 @@ public class Grisu {
         return n;
     }
 
-    private static long u_digitGen( long u_vf, int ve, long u_pf, int pe, long u_delta, byte[] buffer, int boffset, int base10exp ) {
+    protected static long u_digitGen( long u_vf, int ve, long u_pf, int pe, long u_delta, byte[] buffer, int boffset, int base10exp ) {
 
         long u_onef = 1L << -pe;
         long u_fracMask = u_onef - 1;
@@ -176,7 +223,7 @@ public class Grisu {
         }
     }
 
-    private static long u_grisu2( byte[] buffer, int boffset, double value ) {
+    protected static long u_grisu2( byte[] buffer, int boffset, double value ) {
 
         // copy and paste from DiyFp(), I admit it.
         long u_vbits = Double.doubleToLongBits( value );
@@ -233,7 +280,7 @@ public class Grisu {
         return u_digitGen(u_vf, ve, u_pf, pe, u_pf - u_mf, buffer, boffset, base10exp);
     }
 
-    private int appendExponent(byte[] buffer, int boffset, int base10exp ) {
+    protected int appendExponent(byte[] buffer, int boffset, int base10exp ) {
 
         int pos = boffset;
 
@@ -272,22 +319,23 @@ public class Grisu {
         return pos - boffset;
     }
 
-    // Grisu just gives you a string of numbers and a base 10 exponent.
-    // This makes it easier to read (e.g, 0.1 isn't rendered as 1 * 10^-1)
-    // This is conceptually simple, but intricate in practice, especially when
-    // trying to write into a buffer at a offset.
-    //
-    // This only write positive values. It is assumed the negative sign will
-    // be taken care of elsewhere.
-    //
-    // returns the final length of the formatted number
-    private int formatBuffer( byte[] buffer, int boffset, int blen, int exp ) {
+    /**
+     * 
+     * Grisu just gives you a string of numbers and a base 10 exponent.
+     * This makes it easier to read (e.g, 0.1 isn't rendered as 1 * 10^-1)
+     * This is conceptually simple, but intricate in practice, especially when
+     * trying to write into a buffer at a offset.
+     * This only write positive values. It is assumed the negative sign will
+     * be taken care of elsewhere.
+     * returns the final length of the formatted number
 
-        //		System.out.println("------------------------------------");
-        //		System.out.println( new String(buffer).trim() );
-        //		System.out.println( "boffset=" + boffset );
-        //		System.out.println( "blen=" + blen );
-        //		System.out.println( "exp=" + exp );
+     * @param buffer The buffer {@link #u_grisu2(byte[], int, double)} printed into.
+     * @param boffset The start position of the digits. The same argument to {@link #u_grisu2(byte[], int, double)}.
+     * @param blen The length of the digit string returned from {@link #u_grisu2(byte[], int, double)}
+     * @param exp The exponent returned from {@link #u_grisu2(byte[], int, double)}
+     * @return The final length of the formatted number
+     */
+    protected int formatBuffer( byte[] buffer, int boffset, int blen, int exp ) {
 
         int givendigits = blen;
 
@@ -296,7 +344,7 @@ public class Grisu {
 
             int totaldigits = givendigits + exp;
 
-            if( totaldigits <= maxintdigits ) {
+            if( totaldigits <= max_int_digits ) {
 
                 // easiest, just extend zeros, if any, and append zero fraction
                 // 12e0 -> 12.0 and 432e1 -> 4320.0
@@ -335,9 +383,7 @@ public class Grisu {
             int intdigits = Math.max( givendigits - fracdigits, 0 );
             int totaldigits = intdigits + fracdigits;
 
-            //			System.out.println( "intdigits=" + intdigits );
-
-            if( intdigits > 0 && intdigits <= maxintdigits ) {
+            if( intdigits > 0 && intdigits <= max_int_digits ) {
 
                 // 12345e-2 -> 123.45
                 System.arraycopy( buffer, boffset + intdigits, buffer, boffset + intdigits + 1, fracdigits );
@@ -346,7 +392,7 @@ public class Grisu {
                 return givendigits + 1; // just inserted a dot
             }
 
-            else if( totaldigits <= maxfracdigits ) {
+            else if( totaldigits <= max_frac_digits ) {
 
                 // 12345e-5 -> 0.12345 and 12e-3 -> 0.012
                 int leadingzeros = fracdigits - givendigits;
@@ -382,7 +428,8 @@ public class Grisu {
                 }
             }
         }
-        // assert false : "Unreachable";
+        // Why is there no way to suppress unreachable code ERRORS? Sometimes it is needed
+        //assert false : "Unreachable";
     }
 
 }
