@@ -1,0 +1,26 @@
+
+2/2/2015
+
+Benchmark                      Mode  Cnt    Score     Error  Units
+RandomBenchmark.rand_doubleto  avgt   12  512.329 ± 100.247  ns/op
+RandomBenchmark.rand_grisubuf  avgt   12  314.580 ±  73.727  ns/op
+RandomBenchmark.rand_grisustr  avgt   12  406.733 ±  87.113  ns/op
+
+Benchmark                       Mode  Cnt    Score    Error  Units
+LowPrecBenchmark.lowp_doubleto  avgt   12  114.695 ± 14.832  ns/op
+LowPrecBenchmark.lowp_grisubuf  avgt   12   52.302 ± 13.685  ns/op
+LowPrecBenchmark.lowp_grisustr  avgt   12  105.147 ±  1.478  ns/op
+
+Benchmark                   Mode  Cnt    Score    Error  Units
+IntBenchmark.ints_doubleto  avgt   20  101.598 ± 24.828  ns/op
+IntBenchmark.ints_grisubuf  avgt   20   66.549 ±  8.911  ns/op
+IntBenchmark.ints_grisustr  avgt   20  160.983 ± 33.906  ns/op <-- somehow mem is killing this
+
+This doens't account for any garbage costs either since the benchmarks
+aren't generating enough to trigger GC, and Java internally uses per-thread
+objects to avoid some allocations.
+
+Don't call Grisu.doubleToString() except for testing. I think the extra
+allocations and copying are killing it. I'll fix that.
+
+

@@ -40,6 +40,13 @@ public class Grisu {
     protected static final byte[] inf_text = "Infinity".getBytes();
     protected static final byte[] zero_text = "0.0".getBytes();
     
+    /**
+     * ByteArray holder for per thread scratch space
+     */
+    private static class ByteArray {
+        public byte[] buffer = new byte[longest_double_output];
+    }
+    
     private ThreadLocal<ByteArray> tlBuffers = new ThreadLocal<ByteArray>() {
         @Override protected ByteArray initialValue() {
             return new ByteArray();
@@ -462,9 +469,5 @@ public class Grisu {
         }
         // Why is there no way to suppress unreachable code ERRORS? Sometimes it is needed
         //assert false : "Unreachable";
-    }
-    
-    private static class ByteArray {
-        public byte[] buffer = new byte[longest_double_output];
-    }
+    }    
 }
