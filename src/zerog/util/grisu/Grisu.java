@@ -8,9 +8,6 @@ import static zerog.util.grisu.DiyFp.u_doubleMantissaMask;
 
 // TODO: add rounding to number of decimals
 // TODO: add fast path for small precision numbers
-// TODO: add JMH benchmarking code to git
-// TODO: doubleToString() make scratch buffer thread local.
-
 public class Grisu {
 
     /**
@@ -42,7 +39,13 @@ public class Grisu {
     protected static final byte[] nan_text = "NaN".getBytes();
     protected static final byte[] inf_text = "Infinity".getBytes();
     protected static final byte[] zero_text = "0.0".getBytes();
-
+    
+    private ThreadLocal<ByteArray> tlBuffers = new ThreadLocal<ByteArray>() {
+        @Override protected ByteArray initialValue() {
+            return new ByteArray();
+        }
+    };
+    
     /**
      * Create a formatter with a set of defaults.
      * 
@@ -66,8 +69,8 @@ public class Grisu {
      * @return The printed representation
      */
     public String doubleToString( double value ) {
-
-        byte[] buf = new byte[ longest_double_output ];
+                
+        byte[] buf = tlBuffers.get().buffer;
         int len = doubleToBytes( buf, 0, value );
         
         return new String( buf, 0, len );
@@ -91,29 +94,51 @@ public class Grisu {
      */
     public int doubleToBytes( byte[] buffer, int boffset, double value ) {
         
-        // TODO: unpack here and test for special cases myself.
-
+        // unpack double
+        long u_vbits = Double.doubleToLongBits( value );
+        
+        boolean visneg = (u_vbits >>> 63) == 1;
+        int ve = (int)((u_vbits & u_doubleExponentMask) >>> doubleMantissaSize);
+        long u_vf = u_vbits & u_doubleMantissaMask;
+        
+        // all ones in the exponent means this is special.
         // Get the special cases out of the way: NaN, infinities, zero(s)
-        if( Double.isNaN( value )) {
-            // TESTME: isNan() hopefully catches all the NaN values, not just the canonical
-            System.arraycopy( nan_text, 0, buffer, boffset, nan_text.length );
-            return nan_text.length;
-        }
-        else if( value == Double.POSITIVE_INFINITY ) {
+        if( ve == (int) (u_doubleExponentMask >>> doubleMantissaSize) ) {
 
-            System.arraycopy( inf_text, 0, buffer, boffset, inf_text.length );
-            return inf_text.length;
-        }
-        else if( value == Double.NEGATIVE_INFINITY ) {
+            if( u_vf != 0 ) {
 
-            buffer[boffset] = '-';
-            System.arraycopy( inf_text, 0, buffer, boffset + 1, inf_text.length );
-            return 1 + inf_text.length;
+                System.arraycopy( nan_text, 0, buffer, boffset, nan_text.length );
+                return nan_text.length;
+            }
+            else if( visneg ) {
+
+                buffer[boffset] = '-';
+                System.arraycopy( inf_text, 0, buffer, boffset + 1, inf_text.length );
+                return 1 + inf_text.length;
+            }
+            else {
+
+                System.arraycopy( inf_text, 0, buffer, boffset, inf_text.length );
+                return inf_text.length;
+            }
         }
-        else if( value == 0 ) {
-            // NOTE: Should I test for +/-0.0 separately?
-            System.arraycopy( zero_text, 0, buffer, boffset, zero_text.length );
-            return zero_text.length;
+
+        // denormalize normals and fix exponent bias
+        if( ve != 0 ) {
+            // normalized, add the implied bit back on
+            u_vf |= u_doubleHiddenBit;
+            ve -= doubleExponentBias;
+        }
+        else {
+            // zero
+            if( u_vf == 0 ) {
+                
+                // NOTE: Should I bother with +/-0.0 distinctions?
+                System.arraycopy( zero_text, 0, buffer, boffset, zero_text.length );
+                return zero_text.length;
+            }
+            // denormalized
+            ve =  1 - doubleExponentBias;
         }
 
         // So we have a number to stringify now
@@ -123,9 +148,52 @@ public class Grisu {
             pos += 1;
             value = -value;
         }
-
-        long u_lenpow = u_grisu2( buffer, boffset + pos, value );
+                
+        long u_lenpow = u_quickpath( buffer, boffset + pos, u_vf, ve );
+        
+        if( u_lenpow == 0 )
+            u_lenpow = u_grisu2( buffer, boffset + pos, u_vf, ve );
+        
         return pos + formatBuffer( buffer, boffset + pos, StuffedPair.car( u_lenpow ), StuffedPair.cdr( u_lenpow ));
+    }
+    
+    static int qps = 0;
+    protected static long u_quickpath( byte[] buffer, int boffset, long u_vf, int ve ) {
+        
+        int leadingzeros = Long.numberOfLeadingZeros( u_vf );
+        int trailingzeros = Long.numberOfTrailingZeros( u_vf );
+        int middlebits = Double.SIZE - leadingzeros - trailingzeros;
+        
+        // for us bias includes the mantissa bits, so our radix piont is the
+        // far right of all the bits -- not 1.1101, but 11101(.0)
+        
+        if( ve >= 0 || Math.abs( ve ) <= trailingzeros ) {
+            
+            // it is an integer, but is it a small enough integer to fit in a long
+            if( middlebits + trailingzeros + ve <= Long.SIZE ) {
+                
+                long u_vinteger = ve >= 0 ? u_vf << ve : u_vf >>> Math.abs( ve );
+                return u_printLong( buffer, boffset, u_vinteger );
+            }
+        }
+
+        return 0;
+    }
+    
+    protected static long u_printLong( byte[] buffer, int boffset, long u_vinteger ) {
+        
+        assert u_vinteger != 0;
+        
+        int ndigits = CachedPowers.numUnsignedLongDigits( u_vinteger );
+
+        for( int i = 0; i < ndigits; ++i ) {
+            
+            byte ch = (byte)('0' + Long.remainderUnsigned( u_vinteger, 10L ));
+            buffer[boffset + ndigits - i - 1] = ch;
+            u_vinteger = Long.divideUnsigned( u_vinteger, 10L );
+        }
+                
+        return StuffedPair.cons( ndigits, 0 );
     }
 
     protected static void round( byte[] buffer, int pos, long u_delta, long u_rest, long  u_onef, long u_winf ) {
@@ -140,58 +208,32 @@ public class Grisu {
         }
     }
 
-    // I wonder if this gets compiled to cmov ops? Not sure if it would
-    // be beneficial or not...
-    protected static int numUnsignedDigits( int u_x ) {
-        
-        int n = 1;
-
-        if( Integer.compareUnsigned( u_x, 100_000_000 ) >= 0 ) {
-            u_x = Integer.divideUnsigned( u_x, 100_000_000 );
-            n += 8;
-        }
-        // after here, we are guaranteed that u_x can no longer have a high bit.
-        if( u_x >= 10_000 ) {
-            u_x /= 10_000;
-            n += 4;
-        }
-        if( u_x >= 100 ) {
-            u_x /= 100;
-            n += 2;
-        }
-        if( u_x >= 10 ) {
-            u_x /= 10;
-            n += 1;
-        }
-
-        return n;
-    }
-
     protected static long u_digitGen( long u_vf, int ve, long u_pf, int pe, long u_delta, byte[] buffer, int boffset, int base10exp ) {
 
         long u_onef = 1L << -pe;
         long u_fracMask = u_onef - 1;
         long u_winf = u_pf - u_vf;
 
+        // FIXME: We overflowing slightly into the long on a few occasions (eg 502973).
         // Grab the integral and fractional parts.
-        int u_intpart = (int)(u_pf >>> -pe);
+        long u_intpart = u_pf >>> -ve;
         long u_fracpart = u_pf & u_fracMask;
 
-        int digits = numUnsignedDigits( u_intpart );
+        int digits = CachedPowers.numUnsignedLongDigits( u_intpart );
         int pos = boffset;
 
         // Write the integer part.
         while( digits > 0 ) {
 
             int pow10 = (int)CachedPowers.u_pow10[digits - 1];
-            int u_dig = Integer.divideUnsigned( u_intpart, pow10 );
-            u_intpart = Integer.remainderUnsigned( u_intpart, pow10 );
+            int u_dig = (int)Long.divideUnsigned( u_intpart, pow10 );
+            u_intpart = Long.remainderUnsigned( u_intpart, pow10 );
 
             // no leading zeros
             if( !(pos == boffset && u_dig == 0) )
                 buffer[pos++] = (byte)('0' + u_dig);
 
-            long u_more = (Integer.toUnsignedLong( u_intpart ) << -pe) + u_fracpart;
+            long u_more = (u_intpart << -pe) + u_fracpart;
             digits--;
 
             // No use going any further, so truncate it off and round.
@@ -223,31 +265,15 @@ public class Grisu {
 
                 base10exp += digits;
                 round(buffer, pos, u_delta, u_fracpart, u_onef, u_winf * CachedPowers.u_pow10[-digits]);
-                //				System.out.println( "cons=" + StuffedPair.toString(StuffedPair.cons(pos-boffset,base10exp)));
                 return StuffedPair.cons( pos - boffset, base10exp );
             }
         }
     }
 
-    protected static long u_grisu2( byte[] buffer, int boffset, double value ) {
-
-        // copy and paste from DiyFp(), I admit it.
-        long u_vbits = Double.doubleToLongBits( value );
-        int ve = (int)(( u_vbits & u_doubleExponentMask ) >>> doubleMantissaSize);
-        long u_vf = u_vbits & u_doubleMantissaMask;
-
-        if( ve != 0 ) {
-            // normalized
-            u_vf |= u_doubleHiddenBit;
-            ve -= doubleExponentBias;
-        }
-        else {
-            // denormalized
-            ve =  1 - doubleExponentBias;
-        }
+    protected static long u_grisu2( byte[] buffer, int boffset, long u_vf, int ve ) {
 
         // calculate the lower and upper bounds
-        int shiftval = u_vf == u_doubleHiddenBit ? 2 : 1;
+        int shiftval = u_vf == u_doubleHiddenBit ? 2 : 1; // is 2^n, then shift another bit
         long u_mf = (u_vf << shiftval) - 1;
         int me = ve - shiftval;
 
@@ -437,5 +463,8 @@ public class Grisu {
         // Why is there no way to suppress unreachable code ERRORS? Sometimes it is needed
         //assert false : "Unreachable";
     }
-
+    
+    private static class ByteArray {
+        public byte[] buffer = new byte[longest_double_output];
+    }
 }

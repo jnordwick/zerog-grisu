@@ -67,4 +67,63 @@ public class CachedPowers {
 		
 		return -(start_ten_exp + i * 8);
 	}
+	
+    // I wonder if this gets compiled to cmov ops? Not sure if it would
+    // be beneficial or not...
+    protected static int numUnsignedIntDigits( int u_x ) {
+        
+        int n = 1;
+
+        if( Integer.compareUnsigned( u_x, 100_000_000 ) >= 0 ) {
+            u_x = Integer.divideUnsigned( u_x, 100_000_000 );
+            n += 8;
+        }
+        // after here, we are guaranteed that u_x can no longer have a high bit.
+        if( u_x >= 10_000 ) {
+            u_x /= 10_000;
+            n += 4;
+        }
+        if( u_x >= 100 ) {
+            u_x /= 100;
+            n += 2;
+        }
+        if( u_x >= 10 ) {
+            u_x /= 10;
+            n += 1;
+        }
+
+        return n;
+    }
+    
+    protected static int numUnsignedLongDigits( long u_x ) {
+        
+        int n = 1;
+
+        if( Long.compareUnsigned( u_x, 10_000_000_000_000_000L) >= 0 ) {
+            u_x = Long.divideUnsigned( u_x, 10_000_000_000_000_000L );
+            n += 16;
+        }
+        // after here, we are guaranteed that u_x can no longer have a high bit.
+        if( u_x >= 100_000_000L ) {
+            u_x /= 100_000_000L;
+            n += 8;
+        }      
+        if( u_x >= 10_000L ) {
+            u_x /= 10_000L;
+            n += 4;
+        }
+        if( u_x >= 100L ) {
+            u_x /= 100L;
+            n += 2;
+        }
+        if( u_x >= 10L ) {
+            u_x /= 10L;
+            n += 1;
+        }
+
+        return n;
+    }
+
+
+
 }

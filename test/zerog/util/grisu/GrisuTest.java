@@ -246,5 +246,25 @@ public class GrisuTest {
             assertEquals(sd, s);
         }
     }
-
+    
+    @Test
+    public void test_smallints() {
+        
+        for(int i = -10000; i <= 10000; i += 1 ) {
+            String sd = i + ".0";
+            String s = Grisu.fmt.doubleToString( i );
+            assertEquals(sd, s);
+        }
+    }
+    
+    @Test
+    public void test_ints() {
+        
+        int step = 23456;
+        for(int i = Integer.MIN_VALUE; i <= Integer.MAX_VALUE - step; i += step ) {
+            String sd = i + ".0";
+            String s = Grisu.fmt.doubleToString( i );
+            assertEquals(sd, s);
+        }
+    }
 }
