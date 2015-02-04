@@ -70,6 +70,7 @@ public class CachedPowers {
 	
     // I wonder if this gets compiled to cmov ops? Not sure if it would
     // be beneficial or not...
+	// NOTE: compiled to all branches w/ some str reduction
     protected static int numUnsignedIntDigits( int u_x ) {
         
         int n = 1;
@@ -99,6 +100,7 @@ public class CachedPowers {
         
         int n = 1;
 
+        // XXX: NOT intrisified. terrible.
         if( Long.compareUnsigned( u_x, 10_000_000_000_000_000L) >= 0 ) {
             u_x = Long.divideUnsigned( u_x, 10_000_000_000_000_000L );
             n += 16;

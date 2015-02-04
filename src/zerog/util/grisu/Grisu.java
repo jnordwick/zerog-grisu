@@ -45,6 +45,7 @@ public class Grisu {
      */
     private static class ByteArray {
         public byte[] buffer = new byte[longest_double_output];
+        public char[] charb = new char[longest_double_output];
     }
     
     private ThreadLocal<ByteArray> tlBuffers = new ThreadLocal<ByteArray>() {
@@ -76,13 +77,22 @@ public class Grisu {
      * @return The printed representation
      */
     public String doubleToString( double value ) {
-                
-        byte[] buf = tlBuffers.get().buffer;
-        int len = doubleToBytes( buf, 0, value );
         
-        return new String( buf, 0, len );
+        ByteArray buf = tlBuffers.get();
+        int len = doubleToBytes( buf.buffer, 0, value );
+        
+        return new String( toChars( buf, len ), 0, len );
     }
-
+    
+    protected static char[] toChars( ByteArray buf, int len ) {
+        
+        for( int i = 0; i < len; ++i )
+            buf.charb[i] = (char)buf.buffer[i];
+        
+        return buf.charb;
+    }
+   
+    
     /**
      * Will print the specific double value to the buffer starting at offset using
      * the Grisu2 algorithm described by Florian Loitsch in
@@ -102,7 +112,7 @@ public class Grisu {
     public int doubleToBytes( byte[] buffer, int boffset, double value ) {
         
         // unpack double
-        long u_vbits = Double.doubleToLongBits( value );
+        long u_vbits = Double.doubleToRawLongBits( value );
         
         boolean visneg = (u_vbits >>> 63) == 1;
         int ve = (int)((u_vbits & u_doubleExponentMask) >>> doubleMantissaSize);
@@ -150,10 +160,10 @@ public class Grisu {
 
         // So we have a number to stringify now
         int pos = 0;
-        if( value < 0 ) {
+        if( visneg ) { // NOTE: value < 0 was killing hotspot mixing mmx instrs
+            
             buffer[boffset + pos] = '-';
             pos += 1;
-            value = -value;
         }
                 
         long u_lenpow = u_quickpath( buffer, boffset + pos, u_vf, ve );
@@ -195,6 +205,7 @@ public class Grisu {
 
         for( int i = 0; i < ndigits; ++i ) {
             
+            // FIXME: unusably slow. falls back to bignums
             byte ch = (byte)('0' + Long.remainderUnsigned( u_vinteger, 10L ));
             buffer[boffset + ndigits - i - 1] = ch;
             u_vinteger = Long.divideUnsigned( u_vinteger, 10L );

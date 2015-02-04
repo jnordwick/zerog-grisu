@@ -1,20 +1,35 @@
 
 2/2/2015
 
+command line:
+sudo nice -n -20 \
+   taskset -c 3 \
+   java -cp target/benchmarks.jar:/home/jnordwick/workspace/zerog-grisu/zerog-grisu.jar zerog.util.grisu.IntBenchmark
+
 Benchmark                      Mode  Cnt    Score     Error  Units
-RandomBenchmark.rand_doubleto  avgt   12  512.329 ± 100.247  ns/op
-RandomBenchmark.rand_grisubuf  avgt   12  314.580 ±  73.727  ns/op
-RandomBenchmark.rand_grisustr  avgt   12  406.733 ±  87.113  ns/op
+RandomBenchmark.rand_doubleto  avgt   10  464.017 ± 193.229  ns/op
+RandomBenchmark.rand_grisubuf  avgt   10  305.862 ±   4.859  ns/op
+RandomBenchmark.rand_grisustr  avgt   10  388.259 ±   4.495  ns/op
 
 Benchmark                       Mode  Cnt    Score    Error  Units
-LowPrecBenchmark.lowp_doubleto  avgt   12  114.695 ± 14.832  ns/op
-LowPrecBenchmark.lowp_grisubuf  avgt   12   52.302 ± 13.685  ns/op
-LowPrecBenchmark.lowp_grisustr  avgt   12  105.147 ±  1.478  ns/op
+LowPrecBenchmark.lowp_doubleto  avgt   10   64.977 ±  0.542  ns/op
+LowPrecBenchmark.lowp_grisubuf  avgt   10   47.703 ± 19.987  ns/op <-- [3]
+LowPrecBenchmark.lowp_grisustr  avgt   10  101.179 ±  0.925  ns/op <-- [2]
 
 Benchmark                   Mode  Cnt    Score    Error  Units
-IntBenchmark.ints_doubleto  avgt   20  101.598 ± 24.828  ns/op
-IntBenchmark.ints_grisubuf  avgt   20   66.549 ±  8.911  ns/op
-IntBenchmark.ints_grisustr  avgt   20  160.983 ± 33.906  ns/op <-- somehow mem is killing this
+IntBenchmark.ints_doubleto  avgt   10   85.440 ±  3.965  ns/op
+IntBenchmark.ints_grisubuf  avgt   10   69.546 ± 28.542  ns/op <-- [1][3]
+IntBenchmark.ints_grisustr  avgt   10  118.494 ±  2.378  ns/op <-- [2]
+
+[1] The hiccup is consistant and predictable (almost -- sometimes it doesn't happen, ugh).
+
+[2] About the only difference between grisubuf and grisustr is that grisustr needs
+to grab a temp buffer from a thread local and new off a string. I'm not sure how grisubuf
+does well, but grisustr is left in the dust since the fast path int code is competitive
+with Double.toString() as shown.
+
+[3] I'm not sure how the low precision code is faster since it runs both int fast path code
+and slow path code.
 
 This doens't account for any garbage costs either since the benchmarks
 aren't generating enough to trigger GC, and Java internally uses per-thread
@@ -23,4 +38,17 @@ objects to avoid some allocations.
 Don't call Grisu.doubleToString() except for testing. I think the extra
 allocations and copying are killing it. I'll fix that.
 
+Benchmark                   Mode  Cnt   Score   Error  Units
+IntBenchmark.ints_doubleto  avgt   10  83.291 ± 0.266  ns/op
+IntBenchmark.ints_grisubuf  avgt   10  62.074 ± 0.232  ns/op
+IntBenchmark.ints_grisustr  avgt   10  72.341 ± 0.199  ns/op
 
+Benchmark                       Mode  Cnt    Score   Error  Units
+LowPrecBenchmark.lowp_doubleto  avgt   10  179.892 ± 0.528  ns/op
+LowPrecBenchmark.lowp_grisubuf  avgt   10  201.128 ± 0.465  ns/op
+LowPrecBenchmark.lowp_grisustr  avgt   10  227.595 ± 1.118  ns/op
+
+Benchmark                      Mode  Cnt    Score   Error  Units
+RandomBenchmark.rand_doubleto  avgt   10  405.920 ± 0.891  ns/op
+RandomBenchmark.rand_grisubuf  avgt   10  304.123 ± 1.155  ns/op
+RandomBenchmark.rand_grisustr  avgt   10  337.676 ± 1.743  ns/op

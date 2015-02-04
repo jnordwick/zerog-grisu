@@ -5,9 +5,11 @@ import java.util.concurrent.TimeUnit;
 
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.CompilerControl;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
@@ -24,11 +26,13 @@ public class RandomBenchmark {
     private static final int nmask = 1024*1024 - 1;
     private static final double[] random_values = new double[nmask + 1];
     
-    public static byte[] bresults = new byte[30];
-    private static int i = 0;
+    public static byte[] bresults;
+    public static int i;
         
-    static {
-        
+    @Setup()
+    public void setup() {
+        i = 0;
+        bresults = new byte[30];
         Random r = new Random();
         
         for( int i = 0; i < random_values.length; ++i ) {
@@ -37,6 +41,7 @@ public class RandomBenchmark {
     }
     
     @Benchmark
+    @CompilerControl(CompilerControl.Mode.DONT_INLINE)
     public String rand_doubleto() {
         String s = Double.toString( random_values[i] );
         i = (i + 1) & nmask;
@@ -44,6 +49,7 @@ public class RandomBenchmark {
     }
     
    @Benchmark
+   @CompilerControl(CompilerControl.Mode.DONT_INLINE)
     public String rand_grisustr() {
         String s =  g.doubleToString( random_values[i] );
         i = (i + 1) & nmask;
@@ -51,6 +57,7 @@ public class RandomBenchmark {
     }
     
    @Benchmark
+   @CompilerControl(CompilerControl.Mode.DONT_INLINE)
     public byte[] rand_grisubuf() {
         g.doubleToBytes( bresults, 0, random_values[i] );
         i = (i + 1) & nmask;
@@ -60,7 +67,8 @@ public class RandomBenchmark {
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder()
                 .include(".*" + RandomBenchmark.class.getSimpleName() + ".*")
-                .warmupIterations(10)
+                .addProfiler( org.openjdk.jmh.profile.LinuxPerfAsmProfiler.class )
+                .warmupIterations(30)
                 .measurementIterations(10)
                 .forks(1)
                 .build();
