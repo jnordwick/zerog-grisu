@@ -67,7 +67,7 @@ public class RandomBenchmark {
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder()
                 .include(".*" + RandomBenchmark.class.getSimpleName() + ".*")
-                .addProfiler( org.openjdk.jmh.profile.LinuxPerfAsmProfiler.class )
+//                .addProfiler( org.openjdk.jmh.profile.LinuxPerfAsmProfiler.class )
                 .warmupIterations(30)
                 .measurementIterations(10)
                 .forks(1)

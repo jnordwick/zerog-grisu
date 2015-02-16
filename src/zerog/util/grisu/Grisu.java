@@ -160,14 +160,13 @@ public class Grisu {
 
         // So we have a number to stringify now
         int pos = 0;
-        if( visneg ) { // NOTE: value < 0 was killing hotspot mixing mmx instrs
+        if( visneg ) { // NOTE: value < 0 was forcing hotspot to mix mmx instrs, perf impact?
             
             buffer[boffset + pos] = '-';
-            pos += 1;
+            pos = 1;
         }
                 
         long u_lenpow = u_quickpath( buffer, boffset + pos, u_vf, ve );
-        
         if( u_lenpow == 0 )
             u_lenpow = u_grisu2( buffer, boffset + pos, u_vf, ve );
         
@@ -184,12 +183,12 @@ public class Grisu {
         // for us bias includes the mantissa bits, so our radix piont is the
         // far right of all the bits -- not 1.1101, but 11101(.0)
         
-        if( ve >= 0 || Math.abs( ve ) <= trailingzeros ) {
+        if( ve >= 0 || -ve <= trailingzeros ) {
             
             // it is an integer, but is it a small enough integer to fit in a long
             if( middlebits + trailingzeros + ve <= Long.SIZE ) {
                 
-                long u_vinteger = ve >= 0 ? u_vf << ve : u_vf >>> Math.abs( ve );
+                long u_vinteger = ve >= 0 ? u_vf << ve : u_vf >>> -ve;
                 return u_printLong( buffer, boffset, u_vinteger );
             }
         }
@@ -205,10 +204,13 @@ public class Grisu {
 
         for( int i = 0; i < ndigits; ++i ) {
             
-            // FIXME: unusably slow. falls back to bignums
-            byte ch = (byte)('0' + Long.remainderUnsigned( u_vinteger, 10L ));
-            buffer[boffset + ndigits - i - 1] = ch;
-            u_vinteger = Long.divideUnsigned( u_vinteger, 10L );
+            // NOTE: Long.remainderUnsigned() uses BigInteger
+            long u_vinteger_div10 = (u_vinteger >>> 1) / 5;
+            int u_vinteger_mod10 = (int)(u_vinteger - u_vinteger_div10 * 10);
+            
+            buffer[boffset + ndigits - i - 1] = (byte)('0' + u_vinteger_mod10);
+            
+            u_vinteger = u_vinteger_div10;
         }
                 
         return StuffedPair.cons( ndigits, 0 );
@@ -232,20 +234,24 @@ public class Grisu {
         long u_fracMask = u_onef - 1;
         long u_winf = u_pf - u_vf;
 
-        // FIXME: We overflowing slightly into the long on a few occasions (eg 502973).
+        // NOTE: We overflowing slightly into the long on a few occasions (eg 502973).
+        
         // Grab the integral and fractional parts.
         long u_intpart = u_pf >>> -ve;
         long u_fracpart = u_pf & u_fracMask;
-
+        
         int digits = CachedPowers.numUnsignedLongDigits( u_intpart );
         int pos = boffset;
 
         // Write the integer part.
         while( digits > 0 ) {
 
+            // n div 10^x = n div 2^x div 5^x
+            // can't just divide because of sign bit
             int pow10 = (int)CachedPowers.u_pow10[digits - 1];
-            int u_dig = (int)Long.divideUnsigned( u_intpart, pow10 );
-            u_intpart = Long.remainderUnsigned( u_intpart, pow10 );
+            int u_dig = (int)((u_intpart >>> digits - 1) / (pow10 >>> digits - 1));  
+            
+            u_intpart = u_intpart - (u_dig * pow10);
 
             // no leading zeros
             if( !(pos == boffset && u_dig == 0) )
@@ -255,7 +261,9 @@ public class Grisu {
             digits--;
 
             // No use going any further, so truncate it off and round.
-            if (Long.compareUnsigned( u_more, u_delta ) <= 0) {
+//            assert u_more >= 0;
+            if( u_delta < 0 || u_more <= u_delta ) {
+//            if( Long.compareUnsigned( u_more, u_delta ) <= 0 ) {
 
                 base10exp += digits;
                 round( buffer, pos, u_delta, u_more, CachedPowers.u_pow10[digits] << -pe, u_winf );

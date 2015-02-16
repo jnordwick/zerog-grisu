@@ -31,7 +31,7 @@ public class LowPrecBenchmark {
         Random r = new Random();
         int[] pows = new int[] { 1, 10, 100, 1000, 10000, 100000, 1000000 };
         for(int i = 0; i < lowp_values.length; ++i ) {
-            lowp_values[i] = (1 + r.nextInt( 10000 )) / pows[r.nextInt( pows.length )];
+            lowp_values[i] = (double)(1 + r.nextInt( 10000 )) / (double)pows[r.nextInt( pows.length )];
         }
     }
     

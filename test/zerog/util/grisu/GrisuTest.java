@@ -212,13 +212,11 @@ public class GrisuTest {
         assertEquals("1e+307", s);
     }
 
-
     public void test_border7() {
         double d = 1e-322;
         String s = Grisu.fmt.doubleToString( d );
         assertEquals("1e-322", s);
     }
-
 
     @Test
     public void test_denorm1() {
@@ -266,5 +264,13 @@ public class GrisuTest {
             String s = Grisu.fmt.doubleToString( i );
             assertEquals(sd, s);
         }
+    }
+    
+    @Test
+    public void test_misc1() {
+        
+        double d = 502973;
+        String s = Grisu.fmt.doubleToString( d );
+        assertEquals("502973.0", s);
     }
 }

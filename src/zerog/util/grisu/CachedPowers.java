@@ -4,12 +4,21 @@ public class CachedPowers {
 	
 	static final double bits_per_10 = Math.log(2) / Math.log(10);
 	
+	static final long u_pow5[] = {
+	    
+	    1L, 5L, 25L, 125L, 625L, 3125L, 15625L, 78125L, 390625L, 1953125L, 9765625L,
+	    48828125L, 244140625L, 1220703125L, 6103515625L, 30517578125L, 152587890625L,
+	    762939453125L, 3814697265625L, 19073486328125L, 95367431640625L, 476837158203125L,
+	    2384185791015625L, 11920928955078125L, 59604644775390625L, 298023223876953125L,
+	    1490116119384765625L, 7450580596923828125L
+	};
+	
 	static final long u_pow10[] = {
 		
-		1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000,
-		1000000000, 10000000000L, 100000000000L, 1000000000000L, 10000000000000L,
+		1L, 10L, 100L, 1000L, 10000L, 100000L, 1000000L, 10000000L, 100000000L,
+		1000000000L, 10000000000L, 100000000000L, 1000000000000L, 10000000000000L,
 		100000000000000L, 1000000000000000L, 10000000000000000L, 100000000000000000L,
-		1000000000000000000L, Long.MAX_VALUE // not really a power of 10 :/
+		1000000000000000000L
 	};
 
 	static final int start_ten_exp = -348;
@@ -58,7 +67,7 @@ public class CachedPowers {
 	static int cacheIndexFrom2Exp( int e ) {
 		
 		double dk = -((61 + e) * bits_per_10 + start_ten_exp);
-		int n = (int)Math.ceil( dk );
+		int n = (int)(dk + 1); // TESTME: this seems like an error waiting to happen
 		
 		return n/8 + 1;
 	}
@@ -76,18 +85,21 @@ public class CachedPowers {
         int n = 1;
 
         if( Integer.compareUnsigned( u_x, 100_000_000 ) >= 0 ) {
-            u_x = Integer.divideUnsigned( u_x, 100_000_000 );
+            u_x = (u_x >>> 8) / 390625; // x / 2**8 / 5**8
             n += 8;
         }
+        
         // after here, we are guaranteed that u_x can no longer have a high bit.
         if( u_x >= 10_000 ) {
             u_x /= 10_000;
             n += 4;
         }
+        
         if( u_x >= 100 ) {
             u_x /= 100;
             n += 2;
         }
+        
         if( u_x >= 10 ) {
             u_x /= 10;
             n += 1;
@@ -100,24 +112,27 @@ public class CachedPowers {
         
         int n = 1;
 
-        // XXX: NOT intrisified. terrible.
-        if( Long.compareUnsigned( u_x, 10_000_000_000_000_000L) >= 0 ) {
-            u_x = Long.divideUnsigned( u_x, 10_000_000_000_000_000L );
+        if( Long.compareUnsigned( u_x, 10_000_000_000_000_000L) >= 0 ) {            
+            u_x = (u_x >>> 16) / 152587890625L;  // x/10^16 = x/2^16/5^16
             n += 16;
         }
+        
         // after here, we are guaranteed that u_x can no longer have a high bit.
         if( u_x >= 100_000_000L ) {
             u_x /= 100_000_000L;
             n += 8;
-        }      
+        }
+        
         if( u_x >= 10_000L ) {
             u_x /= 10_000L;
             n += 4;
         }
+        
         if( u_x >= 100L ) {
             u_x /= 100L;
             n += 2;
         }
+        
         if( u_x >= 10L ) {
             u_x /= 10L;
             n += 1;
