@@ -9,7 +9,6 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 public class GrisuTest {
-
     @Test
     public void test_zero() {
         double d = 0.0;
@@ -283,5 +282,12 @@ public class GrisuTest {
 		double d = -3.1781265513747738E18;
 		String s = Grisu.fmt.doubleToString(d);
 		assertEquals("-3.1781265513747738e+18", s);
+	}
+	
+	@Test
+	public void test_longpow10() {
+		double d = 3.6445917645030247E-267;
+		String s = Grisu.fmt.doubleToString(d);
+		assertEquals("3.6445917645030247e-267", s);
 	}
 }

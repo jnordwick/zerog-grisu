@@ -259,7 +259,7 @@ public class Grisu {
 
             // n div 10^x = n div 2^x div 5^x
             // can't just divide because of sign bit
-            int pow10 = (int)CachedPowers.u_pow10[digits - 1];
+            long pow10 = CachedPowers.u_pow10[digits - 1];
             int u_dig = (int)((u_intpart >>> digits - 1) / (pow10 >>> digits - 1));  
             
             u_intpart = u_intpart - (u_dig * pow10);
