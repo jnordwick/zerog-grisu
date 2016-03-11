@@ -201,6 +201,17 @@ public class Grisu {
         assert u_vinteger != 0;
         
         int ndigits = CachedPowers.numUnsignedLongDigits( u_vinteger );
+		int rounded = 0;
+        
+		for (; ndigits > max_grisu_precision; ndigits--, rounded++) {
+			long u_vinteger_div10 = (u_vinteger >>> 1) / 5;
+			int u_vinteger_mod10 = (int) (u_vinteger - u_vinteger_div10 * 10);
+
+			u_vinteger = u_vinteger_div10;
+			if (u_vinteger_mod10 >= 5) {
+				u_vinteger++;
+			}
+		}
 
         for( int i = 0; i < ndigits; ++i ) {
             
@@ -213,7 +224,7 @@ public class Grisu {
             u_vinteger = u_vinteger_div10;
         }
                 
-        return StuffedPair.cons( ndigits, 0 );
+		return StuffedPair.cons(ndigits, rounded);
     }
 
     protected static void round( byte[] buffer, int pos, long u_delta, long u_rest, long  u_onef, long u_winf ) {
