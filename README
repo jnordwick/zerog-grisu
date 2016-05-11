@@ -1,6 +1,6 @@
 A Java implementation of the Florian Loitsch's Grisu2 algorithm for printing
-floating point numbers with only integer arithmetic. Fast and almost
-alawys correct :)
+floating point numbers with only integer arithmetic. Fast and always correct,
+even if not the shortest :)
 
 No garbage is created per call. Possibly a little on startup.
 
@@ -13,10 +13,7 @@ around Java's lack of unsigned integers. All these could be solved if Java
 had no-overhead value objects on the stack. Valhalla is working on them I
 hear, but that is a Java 10 feature at the earliest :(
 
-I'm trying to get the rest of the Zero-G Logging out sometime soon, but it
-has to be ripped from a larger zero-g library.
-
 COMPILING:
 
-The project has JMH jar references to my maven repo. That that causes problems,
+The project has JMH jar references to my maven repo. If that causes problems,
 you can remove them and test/zerog/util.grisu/JmhBenchmark.java from the build.
